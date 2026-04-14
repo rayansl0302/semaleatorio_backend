@@ -5,6 +5,7 @@ import {
   asaasCreatePayment,
   asaasFindCustomersByEmail,
   asaasCreateCustomer,
+  asaasUpdateCustomer,
 } from '../asaasClient.js'
 import { env } from '../config.js'
 import { type AuthedRequest, requireFirebaseAuth } from '../middleware/firebaseAuth.js'
@@ -34,7 +35,9 @@ async function findOrCreateAsaasCustomer(params: {
 }): Promise<string> {
   const list = await asaasFindCustomersByEmail(params.email)
   if (list.length > 0) {
-    return list[0]!.id
+    const existing = list[0]!
+    await asaasUpdateCustomer(existing.id, { cpfCnpj: params.cpfCnpj })
+    return existing.id
   }
   const c = await asaasCreateCustomer({
     name: params.name,

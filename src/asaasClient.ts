@@ -49,6 +49,24 @@ export async function asaasFindCustomersByEmail(
   return body.data ?? []
 }
 
+export async function asaasUpdateCustomer(
+  id: string,
+  params: { cpfCnpj?: string },
+): Promise<void> {
+  const res = await fetch(
+    `${asaasBaseUrl()}/v3/customers/${encodeURIComponent(id)}`,
+    {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify(params),
+    },
+  )
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(`Asaas update customer: ${res.status} ${t}`)
+  }
+}
+
 export async function asaasCreateCustomer(params: {
   name: string
   email: string
