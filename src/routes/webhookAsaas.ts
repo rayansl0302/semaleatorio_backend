@@ -5,6 +5,7 @@ import {
   asaasWebhookVerifyTokenCandidates,
   normalizeAsaasWebhookSecret,
 } from '../config.js'
+import { persistAsaasWebhookDeliveryLog } from '../asaasWebhookDeliveryLog.js'
 import { hasFirebaseAdminCredentials } from '../firebaseAdmin.js'
 import { applyPaymentFulfillmentOnce } from '../fulfillment.js'
 import { isProductRef, type ProductRef } from '../products.js'
@@ -114,11 +115,29 @@ webhookAsaasRouter.post('/', async (req, res) => {
   const paymentId = payment?.id
 
   if (!event || !paymentId) {
+    if (hasFirebaseAdminCredentials()) {
+      void persistAsaasWebhookDeliveryLog({
+        body,
+        outcome: 'ignored_no_payment_or_event',
+        event,
+        eventId,
+        paymentId,
+      }).catch((e) => console.error('[webhook] falha ao gravar webhook_delivery_logs', e))
+    }
     res.status(200).json({ received: true, ignored: true })
     return
   }
 
   if (!FULFILL_EVENTS.has(event)) {
+    if (hasFirebaseAdminCredentials()) {
+      void persistAsaasWebhookDeliveryLog({
+        body,
+        outcome: 'ignored_unhandled_event',
+        event,
+        eventId,
+        paymentId,
+      }).catch((e) => console.error('[webhook] falha ao gravar webhook_delivery_logs', e))
+    }
     res.status(200).json({ received: true, ignored: true, event })
     return
   }
@@ -136,6 +155,15 @@ webhookAsaasRouter.post('/', async (req, res) => {
       payment.externalReference,
       payment.customer,
     )
+    if (hasFirebaseAdminCredentials()) {
+      void persistAsaasWebhookDeliveryLog({
+        body,
+        outcome: 'ignored_bad_reference',
+        event,
+        eventId,
+        paymentId,
+      }).catch((e) => console.error('[webhook] falha ao gravar webhook_delivery_logs', e))
+    }
     res.status(200).json({ received: true, ignored: true, reason: 'bad_reference' })
     return
   }
@@ -153,6 +181,14 @@ webhookAsaasRouter.post('/', async (req, res) => {
   }
 
   res.status(200).json({ received: true })
+
+  void persistAsaasWebhookDeliveryLog({
+    body,
+    outcome: 'accepted_fulfillment',
+    event,
+    eventId,
+    paymentId,
+  }).catch((e) => console.error('[webhook] falha ao gravar webhook_delivery_logs', e))
 
   const { uid, productRef } = parsed
   const pay = payment as Record<string, unknown>
