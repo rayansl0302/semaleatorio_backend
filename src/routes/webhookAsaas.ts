@@ -1,7 +1,10 @@
 import crypto from 'node:crypto'
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
-import { asaasWebhookVerifyTokenCandidates } from '../config.js'
+import {
+  asaasWebhookVerifyTokenCandidates,
+  normalizeAsaasWebhookSecret,
+} from '../config.js'
 import { hasFirebaseAdminCredentials } from '../firebaseAdmin.js'
 import { applyPaymentFulfillmentOnce } from '../fulfillment.js'
 import { isProductRef, type ProductRef } from '../products.js'
@@ -20,26 +23,38 @@ type AsaasWebhookBody = {
 
 const FULFILL_EVENTS = new Set(['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'])
 
-function verifyAsaasToken(req: import('express').Request): boolean {
+function incomingAsaasWebhookToken(req: import('express').Request): string {
   const raw = req.headers['asaas-access-token']
-  const token =
+  const fromAsaasHeader =
     typeof raw === 'string'
-      ? raw.trim()
+      ? raw
       : Array.isArray(raw) && raw[0]
-        ? String(raw[0]).trim()
+        ? String(raw[0])
         : ''
+  if (fromAsaasHeader.length) {
+    return normalizeAsaasWebhookSecret(fromAsaasHeader)
+  }
+  const auth = req.headers.authorization
+  if (typeof auth === 'string' && auth.length > 0) {
+    return normalizeAsaasWebhookSecret(auth)
+  }
+  return ''
+}
+
+function verifyAsaasToken(req: import('express').Request): boolean {
+  const token = incomingAsaasWebhookToken(req)
   if (!token.length) {
     return false
   }
   let a: Buffer
   try {
-    a = Buffer.from(token)
+    a = Buffer.from(token, 'utf8')
   } catch {
     return false
   }
   for (const expected of asaasWebhookVerifyTokenCandidates()) {
     try {
-      const b = Buffer.from(expected)
+      const b = Buffer.from(expected, 'utf8')
       if (a.length !== b.length) continue
       if (crypto.timingSafeEqual(a, b)) return true
     } catch {
@@ -75,6 +90,13 @@ webhookAsaasRouter.use(
 
 webhookAsaasRouter.post('/', async (req, res) => {
   if (!verifyAsaasToken(req)) {
+    const got = incomingAsaasWebhookToken(req)
+    const candidates = asaasWebhookVerifyTokenCandidates()
+    console.warn('[webhook asaas] 401 invalid_webhook_token', {
+      headerLen: got.length,
+      expectedLengths: [...new Set(candidates.map((c) => c.length))],
+      candidateCount: candidates.length,
+    })
     res.status(401).json({ error: 'invalid_webhook_token' })
     return
   }

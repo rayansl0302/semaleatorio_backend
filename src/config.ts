@@ -225,16 +225,40 @@ export function asaasWebhookVerifyToken(): string {
 }
 
 /**
- * Valores distintos configurados para o webhook (trim). O handler HTTP compara o header
- * `asaas-access-token` com **qualquer** um — evita 401 quando o deploy está em production
- * mas o painel Asaas Sandbox só preencheu `ASAAS_WEBHOOK_TOKEN_SANDBOX`, ou o contrário.
+ * Alinha o valor do painel Asaas / variável Railway com o que chega no HTTP (BOM, aspas
+ * acidentais ao colar no Railway, prefixo `Bearer `).
+ */
+export function normalizeAsaasWebhookSecret(raw: string): string {
+  let s = raw.replace(/^\uFEFF/, '').trim()
+  if (s.toLowerCase().startsWith('bearer ')) {
+    s = s.slice(7).replace(/^\uFEFF/, '').trim()
+  }
+  if (s.length >= 2) {
+    const a = s[0]
+    const b = s[s.length - 1]
+    if ((a === '"' && b === '"') || (a === "'" && b === "'")) {
+      s = s.slice(1, -1).replace(/^\uFEFF/, '').trim()
+      if (s.toLowerCase().startsWith('bearer ')) {
+        s = s.slice(7).trim()
+      }
+    }
+  }
+  return s
+}
+
+/**
+ * Valores distintos configurados para o webhook. O handler HTTP compara o header
+ * `asaas-access-token` (ou `Authorization: Bearer`) com **qualquer** um — evita 401 quando
+ * o deploy está em production mas o token do Sandbox está só em `ASAAS_WEBHOOK_TOKEN_SANDBOX`.
  */
 export function asaasWebhookVerifyTokenCandidates(): string[] {
   const raw = [
     env.ASAAS_WEBHOOK_TOKEN,
     env.ASAAS_WEBHOOK_TOKEN_SANDBOX,
     env.ASAAS_WEBHOOK_TOKEN_PRODUCTION,
-  ].filter((t): t is string => typeof t === 'string' && t.trim().length >= 32)
-  const trimmed = raw.map((t) => t.trim())
-  return [...new Set(trimmed)]
+  ].filter((t): t is string => typeof t === 'string' && t.length > 0)
+  const normalized = raw
+    .map((t) => normalizeAsaasWebhookSecret(t))
+    .filter((t) => t.length >= 32)
+  return [...new Set(normalized)]
 }
