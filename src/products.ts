@@ -11,8 +11,8 @@ export type ProductRef = (typeof PRODUCT_REF)[keyof typeof PRODUCT_REF]
 const BRL: Record<ProductRef, number> = {
   [PRODUCT_REF.premiumEssential]: 19.9,
   [PRODUCT_REF.premiumComplete]: 29.9,
-  [PRODUCT_REF.boost1h]: 3,
-  [PRODUCT_REF.boost2h]: 5,
+  [PRODUCT_REF.boost1h]: 5,
+  [PRODUCT_REF.boost2h]: 8,
 }
 
 const DAYS_PREMIUM = 30
