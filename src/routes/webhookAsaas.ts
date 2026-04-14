@@ -8,6 +8,7 @@ import {
 import { hasFirebaseAdminCredentials } from '../firebaseAdmin.js'
 import { applyPaymentFulfillmentOnce } from '../fulfillment.js'
 import { isProductRef, type ProductRef } from '../products.js'
+import { coerceAmountBrl } from '../coerceAmountBrl.js'
 import { resolvePaymentLinkWebhook } from '../webhookPaymentLinkResolve.js'
 
 type AsaasWebhookBody = {
@@ -18,6 +19,11 @@ type AsaasWebhookBody = {
     externalReference?: string | null
     customer?: string | null
     status?: string
+    /** Valor bruto em R$ (payload Asaas). */
+    value?: unknown
+    /** Valor líquido em R$ (payload Asaas). */
+    netValue?: unknown
+    billingType?: string | null
   }
 }
 
@@ -149,7 +155,43 @@ webhookAsaasRouter.post('/', async (req, res) => {
   res.status(200).json({ received: true })
 
   const { uid, productRef } = parsed
-  applyPaymentFulfillmentOnce({ paymentId, eventId, event, uid, productRef }).catch(
-    (e) => console.error('[webhook] falha ao aplicar pagamento', paymentId, e),
-  )
+  const pay = payment as Record<string, unknown>
+  const valueBrl =
+    coerceAmountBrl(pay.value) ??
+    coerceAmountBrl(pay.originalValue) ??
+    coerceAmountBrl(pay.original_value)
+  const netValueBrl =
+    coerceAmountBrl(pay.netValue) ?? coerceAmountBrl(pay.net_value)
+  const billingTypeRaw = pay.billingType ?? pay.billing_type
+  const billingType =
+    typeof billingTypeRaw === 'string' && billingTypeRaw.trim() !== ''
+      ? billingTypeRaw.trim()
+      : undefined
+
+  console.log('[webhook] montantes', {
+    paymentId,
+    valueBrl,
+    netValueBrl,
+    rawValue: pay.value,
+    rawType: typeof pay.value,
+  })
+
+  if (valueBrl == null) {
+    console.warn('[webhook] payment.value/originalValue em falta ou inválido', {
+      paymentId,
+      productRef,
+      keys: Object.keys(pay),
+    })
+  }
+
+  applyPaymentFulfillmentOnce({
+    paymentId,
+    eventId,
+    event,
+    uid,
+    productRef,
+    valueBrl,
+    netValueBrl,
+    billingType,
+  }).catch((e) => console.error('[webhook] falha ao aplicar pagamento', paymentId, e))
 })
