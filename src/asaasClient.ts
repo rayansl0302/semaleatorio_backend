@@ -1,4 +1,4 @@
-import { asaasBaseUrl, env } from './config.js'
+import { asaasApiKey, asaasBaseUrl } from './config.js'
 
 type AsaasCustomer = {
   id: string
@@ -20,8 +20,19 @@ function headers(): Record<string, string> {
   return {
     accept: 'application/json',
     'content-type': 'application/json',
-    access_token: env.ASAAS_API_KEY,
+    access_token: asaasApiKey(),
   }
+}
+
+export async function asaasGetCustomer(id: string): Promise<AsaasCustomer> {
+  const res = await fetch(`${asaasBaseUrl()}/v3/customers/${encodeURIComponent(id)}`, {
+    headers: headers(),
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(`Asaas get customer: ${res.status} ${t}`)
+  }
+  return (await res.json()) as AsaasCustomer
 }
 
 export async function asaasFindCustomersByEmail(

@@ -1,9 +1,11 @@
 import crypto from 'node:crypto'
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
-import { env } from '../config.js'
+import { asaasWebhookVerifyToken } from '../config.js'
+import { hasFirebaseAdminCredentials } from '../firebaseAdmin.js'
 import { applyPaymentFulfillmentOnce } from '../fulfillment.js'
 import { isProductRef, type ProductRef } from '../products.js'
+import { resolvePaymentLinkWebhook } from '../webhookPaymentLinkResolve.js'
 
 type AsaasWebhookBody = {
   id?: string
@@ -11,6 +13,7 @@ type AsaasWebhookBody = {
   payment?: {
     id?: string
     externalReference?: string | null
+    customer?: string | null
     status?: string
   }
 }
@@ -24,7 +27,7 @@ function verifyAsaasToken(req: import('express').Request): boolean {
   }
   try {
     const a = Buffer.from(token)
-    const b = Buffer.from(env.ASAAS_WEBHOOK_TOKEN)
+    const b = Buffer.from(asaasWebhookVerifyToken())
     if (a.length !== b.length) return false
     return crypto.timingSafeEqual(a, b)
   } catch {
@@ -78,10 +81,32 @@ webhookAsaasRouter.post('/', async (req, res) => {
     return
   }
 
-  const parsed = parseExternalReference(payment.externalReference ?? undefined)
+  let parsed = parseExternalReference(payment.externalReference ?? undefined)
+  if (!parsed && hasFirebaseAdminCredentials()) {
+    parsed = await resolvePaymentLinkWebhook({
+      externalReference: payment.externalReference,
+      customer: payment.customer,
+    })
+  }
   if (!parsed) {
-    console.warn('[webhook] externalReference inválido', payment.externalReference)
+    console.warn(
+      '[webhook] não mapeado: esperado uid|PRODUCT_REF na cobrança API, ou link com PRODUCT_REF + customer Asaas com email = Firebase Auth',
+      payment.externalReference,
+      payment.customer,
+    )
     res.status(200).json({ received: true, ignored: true, reason: 'bad_reference' })
+    return
+  }
+
+  if (!hasFirebaseAdminCredentials()) {
+    console.error(
+      '[webhook] FIREBASE_SERVICE_ACCOUNT_JSON em falta — não é possível atualizar o Firestore.',
+    )
+    res.status(503).json({
+      error: 'firestore_admin_not_configured',
+      message:
+        'Define FIREBASE_SERVICE_ACCOUNT_JSON no backend para aplicar pagamentos ao perfil.',
+    })
     return
   }
 

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express'
-import { getFirebaseAuth } from '../firebaseAdmin.js'
+import { verifyFirebaseIdToken } from '../verifyFirebaseIdToken.js'
 
 export type AuthedRequest = Request & {
   firebaseUid: string
@@ -23,12 +23,21 @@ export async function requireFirebaseAuth(
     return
   }
   try {
-    const decoded = await getFirebaseAuth().verifyIdToken(token)
+    const decoded = await verifyFirebaseIdToken(token)
     ;(req as AuthedRequest).firebaseUid = decoded.uid
     ;(req as AuthedRequest).firebaseEmail = decoded.email
     ;(req as AuthedRequest).firebaseName = decoded.name
     next()
-  } catch {
-    res.status(401).json({ error: 'invalid_token' })
+  } catch (e) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[firebaseAuth] verifyIdToken falhou:', e)
+    }
+    res.status(401).json({
+      error: 'invalid_token',
+      message:
+        process.env.NODE_ENV !== 'production'
+          ? 'Token inválido ou FIREBASE_PROJECT_ID no backend diferente de VITE_FIREBASE_PROJECT_ID no front.'
+          : undefined,
+    })
   }
 }

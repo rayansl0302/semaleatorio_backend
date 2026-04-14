@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import { env, riotRsoConfigured } from '../config.js'
+import { hasFirebaseAdminCredentials } from '../firebaseAdmin.js'
 import { type AuthedRequest, requireFirebaseAuth } from '../middleware/firebaseAuth.js'
 import { applyRiotLinkToFirestore } from '../riotLinkFirestore.js'
 import { riotExchangeAuthorizationCode, riotFetchAccountMe } from '../riotRsoService.js'
@@ -76,6 +77,11 @@ riotRsoRouter.get('/callback', callbackLimiter, async (req, res) => {
   const verified = verifyRiotOAuthState(state, env.RIOT_RSO_STATE_SECRET!)
   if (!verified) {
     fail('invalid_state')
+    return
+  }
+
+  if (!hasFirebaseAdminCredentials()) {
+    fail('firestore_admin_not_configured')
     return
   }
 

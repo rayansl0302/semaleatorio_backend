@@ -7,7 +7,6 @@ import {
   asaasCreateCustomer,
 } from '../asaasClient.js'
 import { env } from '../config.js'
-import { getDb } from '../firebaseAdmin.js'
 import { type AuthedRequest, requireFirebaseAuth } from '../middleware/firebaseAuth.js'
 import {
   brlValue,
@@ -26,33 +25,20 @@ function dueDatePlusDays(days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+/** Cliente Asaas só por email (sem Firestore — não precisa de conta de serviço). */
 async function findOrCreateAsaasCustomer(params: {
-  uid: string
   email: string
   name: string
 }): Promise<string> {
-  const db = getDb()
-  const userRef = db.collection('users').doc(params.uid)
-  const snap = await userRef.get()
-  const existing = snap.data()?.asaasCustomerId
-  if (typeof existing === 'string' && existing.length > 0) {
-    return existing
-  }
-
   const list = await asaasFindCustomersByEmail(params.email)
-  let customerId: string
   if (list.length > 0) {
-    customerId = list[0]!.id
-  } else {
-    const c = await asaasCreateCustomer({
-      name: params.name,
-      email: params.email,
-    })
-    customerId = c.id
+    return list[0]!.id
   }
-
-  await userRef.set({ asaasCustomerId: customerId }, { merge: true })
-  return customerId
+  const c = await asaasCreateCustomer({
+    name: params.name,
+    email: params.email,
+  })
+  return c.id
 }
 
 export const checkoutRouter = Router()
@@ -97,7 +83,6 @@ checkoutRouter.post(
 
     try {
       const customerId = await findOrCreateAsaasCustomer({
-        uid: ar.firebaseUid,
         email,
         name: ar.firebaseName ?? 'Cliente',
       })
