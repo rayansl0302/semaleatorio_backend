@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { z } from 'zod'
 
 const emptyToUndef = (v: unknown) => (v === '' || v === undefined ? undefined : v)
