@@ -146,17 +146,10 @@ webhookAsaasRouter.post('/', async (req, res) => {
     return
   }
 
-  try {
-    await applyPaymentFulfillmentOnce({
-      paymentId,
-      eventId,
-      event,
-      uid: parsed.uid,
-      productRef: parsed.productRef,
-    })
-    res.status(200).json({ received: true })
-  } catch (e) {
-    console.error('[webhook] falha ao aplicar pagamento', paymentId, e)
-    res.status(500).json({ error: 'processing_failed' })
-  }
+  res.status(200).json({ received: true })
+
+  const { uid, productRef } = parsed
+  applyPaymentFulfillmentOnce({ paymentId, eventId, event, uid, productRef }).catch(
+    (e) => console.error('[webhook] falha ao aplicar pagamento', paymentId, e),
+  )
 })
