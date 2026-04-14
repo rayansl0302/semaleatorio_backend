@@ -122,3 +122,16 @@ export async function asaasCreatePayment(params: {
   }
   return (await res.json()) as PaymentCreateResponse
 }
+
+/** Cobrança única (GET /v3/payments/:id) — mesmo formato usado no webhook. */
+export async function asaasGetPayment(id: string): Promise<Record<string, unknown>> {
+  const res = await fetch(
+    `${asaasBaseUrl()}/v3/payments/${encodeURIComponent(id)}`,
+    { headers: headers() },
+  )
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(`Asaas get payment: ${res.status} ${t}`)
+  }
+  return (await res.json()) as Record<string, unknown>
+}

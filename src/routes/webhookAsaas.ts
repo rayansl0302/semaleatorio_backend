@@ -70,7 +70,7 @@ function verifyAsaasToken(req: import('express').Request): boolean {
   return false
 }
 
-function parseExternalReference(raw: string | null | undefined): {
+export function parseExternalReference(raw: string | null | undefined): {
   uid: string
   productRef: ProductRef
 } | null {

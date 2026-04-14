@@ -53,15 +53,17 @@ export async function applyPaymentFulfillmentOnce(params: {
       const patch: Record<string, unknown> = {}
       const wasCatalog = existing.valueFromCatalog === true
       const curVal = coerceAmountBrl(existing.value)
-      if (
-        params.valueBrl != null &&
-        Number.isFinite(params.valueBrl) &&
-        (curVal === undefined ||
+      if (params.valueBrl != null && Number.isFinite(params.valueBrl)) {
+        if (wasCatalog) {
+          patch.valueFromCatalog = false
+        }
+        if (
+          curVal === undefined ||
           wasCatalog ||
-          Math.abs(curVal - params.valueBrl) > 1e-9)
-      ) {
-        patch.value = Number(params.valueBrl)
-        patch.valueFromCatalog = false
+          Math.abs(curVal - params.valueBrl) > 1e-9
+        ) {
+          patch.value = Number(params.valueBrl)
+        }
       }
       const curNet = coerceAmountBrl(existing.netValue)
       if (

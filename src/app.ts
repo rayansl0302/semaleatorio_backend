@@ -4,6 +4,7 @@ import express from 'express'
 import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
 import { env } from './config.js'
+import { adminWebhookSyncRouter } from './routes/adminWebhookSync.js'
 import { checkoutRouter } from './routes/checkout.js'
 import { healthRouter } from './routes/health.js'
 import { riotRsoRouter } from './routes/riotRso.js'
@@ -59,6 +60,7 @@ app.use('/webhooks/asaas', webhookAsaasRouter)
 app.use('/api/auth/riot', riotRsoRouter)
 
 app.use('/api', checkoutRouter)
+app.use('/api', adminWebhookSyncRouter)
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'not_found' })
