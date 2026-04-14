@@ -32,9 +32,17 @@ export async function applyPaymentFulfillmentOnce(params: {
   const idemRef = db.collection('webhook_events').doc(params.paymentId)
   const userRef = db.collection('users').doc(params.uid)
 
+  console.log('[fulfillment] aplicar', {
+    paymentId: params.paymentId,
+    uid: params.uid,
+    productRef: params.productRef,
+    event: params.event,
+  })
+
   return db.runTransaction(async (tx) => {
     const idemSnap = await tx.get(idemRef)
     if (idemSnap.exists) {
+      console.log('[fulfillment] já processado (idempotente)', params.paymentId)
       return { applied: false }
     }
 
@@ -68,6 +76,8 @@ export async function applyPaymentFulfillmentOnce(params: {
       const bu = data.boostUntil as Timestamp | undefined
       patch.boostUntil = extendFrom(bu?.toMillis(), addMs, now)
     }
+
+    console.log('[fulfillment] patch a aplicar', params.uid, patch)
 
     tx.set(idemRef, {
       eventId: params.eventId,
