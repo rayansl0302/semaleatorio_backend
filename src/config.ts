@@ -223,3 +223,18 @@ export function asaasWebhookVerifyToken(): string {
   }
   return env.ASAAS_WEBHOOK_TOKEN_PRODUCTION ?? env.ASAAS_WEBHOOK_TOKEN
 }
+
+/**
+ * Valores distintos configurados para o webhook (trim). O handler HTTP compara o header
+ * `asaas-access-token` com **qualquer** um — evita 401 quando o deploy está em production
+ * mas o painel Asaas Sandbox só preencheu `ASAAS_WEBHOOK_TOKEN_SANDBOX`, ou o contrário.
+ */
+export function asaasWebhookVerifyTokenCandidates(): string[] {
+  const raw = [
+    env.ASAAS_WEBHOOK_TOKEN,
+    env.ASAAS_WEBHOOK_TOKEN_SANDBOX,
+    env.ASAAS_WEBHOOK_TOKEN_PRODUCTION,
+  ].filter((t): t is string => typeof t === 'string' && t.trim().length >= 32)
+  const trimmed = raw.map((t) => t.trim())
+  return [...new Set(trimmed)]
+}

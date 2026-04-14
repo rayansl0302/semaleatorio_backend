@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
-import { asaasWebhookVerifyToken } from '../config.js'
+import { asaasWebhookVerifyTokenCandidates } from '../config.js'
 import { hasFirebaseAdminCredentials } from '../firebaseAdmin.js'
 import { applyPaymentFulfillmentOnce } from '../fulfillment.js'
 import { isProductRef, type ProductRef } from '../products.js'
@@ -21,18 +21,32 @@ type AsaasWebhookBody = {
 const FULFILL_EVENTS = new Set(['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'])
 
 function verifyAsaasToken(req: import('express').Request): boolean {
-  const token = req.headers['asaas-access-token']
-  if (typeof token !== 'string' || !token.length) {
+  const raw = req.headers['asaas-access-token']
+  const token =
+    typeof raw === 'string'
+      ? raw.trim()
+      : Array.isArray(raw) && raw[0]
+        ? String(raw[0]).trim()
+        : ''
+  if (!token.length) {
     return false
   }
+  let a: Buffer
   try {
-    const a = Buffer.from(token)
-    const b = Buffer.from(asaasWebhookVerifyToken())
-    if (a.length !== b.length) return false
-    return crypto.timingSafeEqual(a, b)
+    a = Buffer.from(token)
   } catch {
     return false
   }
+  for (const expected of asaasWebhookVerifyTokenCandidates()) {
+    try {
+      const b = Buffer.from(expected)
+      if (a.length !== b.length) continue
+      if (crypto.timingSafeEqual(a, b)) return true
+    } catch {
+      // continua para o próximo candidato
+    }
+  }
+  return false
 }
 
 function parseExternalReference(raw: string | null | undefined): {
