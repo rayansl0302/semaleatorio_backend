@@ -17,6 +17,7 @@ import {
 
 const bodySchema = z.object({
   productRef: z.string().min(1),
+  cpf: z.string().min(11).max(14),
 })
 
 function dueDatePlusDays(days: number): string {
@@ -29,6 +30,7 @@ function dueDatePlusDays(days: number): string {
 async function findOrCreateAsaasCustomer(params: {
   email: string
   name: string
+  cpfCnpj: string
 }): Promise<string> {
   const list = await asaasFindCustomersByEmail(params.email)
   if (list.length > 0) {
@@ -37,6 +39,7 @@ async function findOrCreateAsaasCustomer(params: {
   const c = await asaasCreateCustomer({
     name: params.name,
     email: params.email,
+    cpfCnpj: params.cpfCnpj,
   })
   return c.id
 }
@@ -85,6 +88,7 @@ checkoutRouter.post(
       const customerId = await findOrCreateAsaasCustomer({
         email,
         name: ar.firebaseName ?? 'Cliente',
+        cpfCnpj: parsed.data.cpf.replace(/\D/g, ''),
       })
 
       const externalReference = `${ar.firebaseUid}|${productRef}`

@@ -52,6 +52,7 @@ export async function asaasFindCustomersByEmail(
 export async function asaasCreateCustomer(params: {
   name: string
   email: string
+  cpfCnpj: string
 }): Promise<AsaasCustomer> {
   const res = await fetch(`${asaasBaseUrl()}/v3/customers`, {
     method: 'POST',
@@ -59,6 +60,7 @@ export async function asaasCreateCustomer(params: {
     body: JSON.stringify({
       name: params.name,
       email: params.email,
+      cpfCnpj: params.cpfCnpj,
       notificationDisabled: false,
     }),
   })
