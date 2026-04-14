@@ -2,6 +2,21 @@ import { z } from 'zod'
 
 const emptyToUndef = (v: unknown) => (v === '' || v === undefined ? undefined : v)
 
+/** Se FIREBASE_PROJECT_ID não estiver definido (ex.: Railway), tenta ler `project_id` do JSON da conta de serviço. */
+function enrichFirebaseProjectIdFromServiceAccount(): void {
+  if (process.env.FIREBASE_PROJECT_ID?.trim()) return
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim()
+  if (!raw) return
+  try {
+    const j = JSON.parse(raw) as { project_id?: string }
+    if (j.project_id && typeof j.project_id === 'string' && j.project_id.length > 0) {
+      process.env.FIREBASE_PROJECT_ID = j.project_id
+    }
+  } catch {
+    // JSON inválido: o Zod / runtime do Admin falham depois com mensagem própria
+  }
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(8787),
@@ -132,10 +147,15 @@ function loadEnv(): {
   asaasPublicBaseUrl: string
   asaasResolvedMode: 'sandbox' | 'production'
 } {
+  enrichFirebaseProjectIdFromServiceAccount()
+
   const parsed = envSchema.safeParse(process.env)
   if (!parsed.success) {
     const msg = parsed.error.flatten().fieldErrors
     console.error('Variáveis de ambiente inválidas:', msg)
+    console.error(
+      '[Railway] Variáveis → adiciona pelo menos: ASAAS_WEBHOOK_TOKEN (token do painel Asaas, ≥32 caracteres) e FIREBASE_PROJECT_ID (ou FIREBASE_SERVICE_ACCOUNT_JSON com project_id). Chaves Asaas: ASAAS_API_KEY e/ou ASAAS_API_KEY_SANDBOX.',
+    )
     throw new Error('Configuração .env inválida')
   }
   const data = parsed.data
