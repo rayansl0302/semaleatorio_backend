@@ -78,6 +78,9 @@ const envSchema = z.object({
   RIOT_RSO_STATE_SECRET: z.string().min(32).optional(),
   FRONTEND_APP_URL: z.string().url().optional(),
   RIOT_RSO_SCOPES: z.string().optional(),
+
+  /** Chave secreta reCAPTCHA v2 (só servidor) — ver https://developers.google.com/recaptcha/docs/verify */
+  RECAPTCHA_SECRET_KEY: z.preprocess(emptyToUndef, z.string().min(1).optional()),
 })
   .superRefine((d, ctx) => {
     const hasAny =

@@ -7,6 +7,7 @@ import { env } from './config.js'
 import { adminWebhookSyncRouter } from './routes/adminWebhookSync.js'
 import { checkoutRouter } from './routes/checkout.js'
 import { healthRouter } from './routes/health.js'
+import { postRecaptchaVerify, recaptchaVerifyLimiter } from './routes/recaptchaVerify.js'
 import { riotRsoRouter } from './routes/riotRso.js'
 import { webhookAsaasRouter } from './routes/webhookAsaas.js'
 
@@ -58,6 +59,8 @@ app.use(healthRouter)
 app.use('/webhooks/asaas', webhookAsaasRouter)
 
 app.use('/api/auth/riot', riotRsoRouter)
+
+app.post('/api/auth/recaptcha-verify', recaptchaVerifyLimiter, postRecaptchaVerify)
 
 app.use('/api', checkoutRouter)
 app.use('/api', adminWebhookSyncRouter)
