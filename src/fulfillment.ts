@@ -1,5 +1,10 @@
+import type { DocumentSnapshot } from 'firebase-admin/firestore'
 import { coerceAmountBrl } from './coerceAmountBrl.js'
 import { FieldValue, getDb, Timestamp } from './firebaseAdmin.js'
+import {
+  parseReferralConfigSnap,
+  referralPercentForNth,
+} from './referralConfig.js'
 import {
   BOOST_1H_MS,
   BOOST_2H_MS,
@@ -17,6 +22,10 @@ function extendFrom(
   const cur = currentEndMs ?? 0
   const base = Math.max(now, cur)
   return Timestamp.fromMillis(base + addMs)
+}
+
+function roundMoney2(value: number): number {
+  return Math.round(value * 100) / 100
 }
 
 /**
@@ -99,9 +108,7 @@ export async function applyPaymentFulfillmentOnce(params: {
       params.productRef === PRODUCT_REF.premiumComplete
     ) {
       const variant =
-        params.productRef === PRODUCT_REF.premiumEssential
-          ? 'essential'
-          : 'complete'
+        params.productRef === PRODUCT_REF.premiumEssential ? 'essential' : 'complete'
       const pu = data.premiumUntil as Timestamp | undefined
       patch.plan = 'premium'
       patch.premiumVariant = variant
@@ -117,6 +124,37 @@ export async function applyPaymentFulfillmentOnce(params: {
     }
 
     console.log('[fulfillment] patch a aplicar', params.uid, patch)
+
+    const isPremiumPurchase =
+      params.productRef === PRODUCT_REF.premiumEssential ||
+      params.productRef === PRODUCT_REF.premiumComplete
+
+    const referredRaw = data.referredByUid
+    const referredByUid =
+      isPremiumPurchase &&
+      typeof referredRaw === 'string' &&
+      referredRaw.length > 0 &&
+      referredRaw !== params.uid
+        ? referredRaw
+        : null
+
+    const rewardRef = db.collection('referral_rewards').doc(params.paymentId)
+    let configSnap: DocumentSnapshot | null = null
+    let referrerSnap: DocumentSnapshot | null = null
+    let rewardSnap: DocumentSnapshot | null = null
+
+    if (referredByUid) {
+      const configRef = db.collection('config').doc('referral')
+      const referrerRef = db.collection('users').doc(referredByUid)
+      const [c, r, w] = await Promise.all([
+        tx.get(configRef),
+        tx.get(referrerRef),
+        tx.get(rewardRef),
+      ])
+      configSnap = c
+      referrerSnap = r
+      rewardSnap = w
+    }
 
     const vWh = coerceAmountBrl(params.valueBrl)
     const valueFromWebhook = vWh != null && Number.isFinite(vWh)
@@ -144,8 +182,52 @@ export async function applyPaymentFulfillmentOnce(params: {
     }
 
     tx.set(idemRef, webhookDoc)
-
     tx.set(userRef, patch, { merge: true })
+
+    if (
+      referredByUid &&
+      configSnap &&
+      referrerSnap?.exists &&
+      rewardSnap &&
+      !rewardSnap.exists
+    ) {
+      const cfg = parseReferralConfigSnap(configSnap)
+      if (cfg.enabled) {
+        const rData = referrerSnap.data() ?? {}
+        const completedBefore =
+          typeof rData.referralPaidCount === 'number' && Number.isFinite(rData.referralPaidCount)
+            ? Math.max(0, Math.floor(rData.referralPaidCount))
+            : 0
+        const nth = completedBefore + 1
+        const percentApplied = referralPercentForNth(nth, cfg)
+        const commissionBrl = roundMoney2((valueStored * percentApplied) / 100)
+        const pixRaw = rData.pixKey
+        const pixKeySnapshot =
+          typeof pixRaw === 'string' ? pixRaw.trim().slice(0, 120) : ''
+
+        tx.set(rewardRef, {
+          buyerUid: params.uid,
+          referrerUid: referredByUid,
+          productRef: params.productRef,
+          paymentId: params.paymentId,
+          eventId: params.eventId,
+          valueBrl: valueStored,
+          percentApplied,
+          commissionBrl,
+          referralNth: nth,
+          pixKeySnapshot,
+          payoutStatus: 'pending',
+          createdAt: FieldValue.serverTimestamp(),
+        })
+
+        tx.set(
+          db.collection('users').doc(referredByUid),
+          { referralPaidCount: FieldValue.increment(1) },
+          { merge: true },
+        )
+      }
+    }
+
     return { applied: true }
   })
 }

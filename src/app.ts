@@ -6,6 +6,7 @@ import helmet from 'helmet'
 import { env } from './config.js'
 import { adminWebhookSyncRouter } from './routes/adminWebhookSync.js'
 import { checkoutRouter } from './routes/checkout.js'
+import { referralClaimRouter } from './routes/referralClaim.js'
 import { healthRouter } from './routes/health.js'
 import { postRecaptchaVerify, recaptchaVerifyLimiter } from './routes/recaptchaVerify.js'
 import { riotRsoRouter } from './routes/riotRso.js'
@@ -63,6 +64,7 @@ app.use('/api/auth/riot', riotRsoRouter)
 app.post('/api/auth/recaptcha-verify', recaptchaVerifyLimiter, postRecaptchaVerify)
 
 app.use('/api', checkoutRouter)
+app.use('/api', referralClaimRouter)
 app.use('/api', adminWebhookSyncRouter)
 
 app.use((_req, res) => {

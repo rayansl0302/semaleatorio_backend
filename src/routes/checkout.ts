@@ -13,12 +13,15 @@ import {
   brlValue,
   isProductRef,
   productDescription,
+  PRODUCT_REF,
   type ProductRef,
 } from '../products.js'
+import { tryAttachReferralByProfileSlug } from '../referralAttach.js'
 
 const bodySchema = z.object({
   productRef: z.string().min(1),
   cpf: z.string().min(11).max(14),
+  referralSlug: z.string().min(1).max(128).optional(),
 })
 
 function dueDatePlusDays(days: number): string {
@@ -78,6 +81,22 @@ checkoutRouter.post(
     const productRef: ProductRef = refRaw
 
     const ar = req as AuthedRequest
+
+    const slugOpt = parsed.data.referralSlug?.trim()
+    if (
+      slugOpt &&
+      (productRef === PRODUCT_REF.premiumEssential ||
+        productRef === PRODUCT_REF.premiumComplete)
+    ) {
+      try {
+        await tryAttachReferralByProfileSlug({
+          buyerUid: ar.firebaseUid,
+          referralSlug: slugOpt,
+        })
+      } catch {
+        // não bloquear checkout se a indicação falhar
+      }
+    }
     const email = ar.firebaseEmail
     if (!email) {
       res.status(400).json({
